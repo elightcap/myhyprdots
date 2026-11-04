@@ -20,6 +20,7 @@ tuigreet login on the console → Hyprland.
 | `boot/limine/default-limine.snippet` | `/etc/default/limine` | Kernel options: `quiet splash` + the Catppuccin console palette |
 | `boot/plymouth/` | `/usr/share/plymouth/themes/aurora`, `/etc/plymouth/` | "aurora" splash: Arch logo, pulsing dots, themed passphrase field |
 | `boot/etc/` | `/etc/...` | initramfs hooks (plymouth before encrypt), console font, greetd-after-plymouth drop-in |
+| `wallpapers/` | `~/Pictures/Wallpapers` | `fetch.sh` + `SOURCES.txt`: downloads and crops the 13 wallpapers, with artist credits |
 
 ## Notes
 
@@ -33,9 +34,13 @@ tuigreet login on the console → Hyprland.
   font: 512-glyph fonts cost the console its 8 bright colours. That font has
   no half-blocks, double or rounded box lines, so the decorations stick to
   `█ ▒ ░ · • + * ° ◆`.
-- **Wallpapers aren't included.** Put yours at `/boot/limine/wallpaper.jpg`
+- **Wallpapers** are other artists' work, so they aren't stored here.
+  `wallpapers/fetch.sh` downloads them from wallhaven into
+  `~/Pictures/Wallpapers`, cropped to 3840x1600 exactly as used;
+  `wallpapers/SOURCES.txt` credits each artist. The boot pieces use
+  `12-aurora-trail.jpg` by BisBiswas: copy it to `/boot/limine/wallpaper.jpg`
   for Limine, and build the splash background with
-  `boot/plymouth/make-background.sh ~/Pictures/Wallpapers/your.jpg`.
+  `boot/plymouth/make-background.sh ~/Pictures/Wallpapers/12-aurora-trail.jpg`.
 - **After changing boot files** rebuild with `sudo limine-mkinitcpio`.
 - **Keeping this repo current:** `./sync.sh` copies the live files back in;
   review `git diff`, commit, push.

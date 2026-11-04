@@ -1,0 +1,14 @@
+# file | wallhaven id | crop (scale to 3840 wide, then 3840x1600 from this y) | artist | original
+01-violet-peaks.png  | kxj3l1 | 280 | rmradev    | https://www.deviantart.com/rmradev/art/Colorful-Mountains-888882581
+02-alien-dusk.jpg    | k81776 | 272 | Kvacm      | https://www.deviantart.com/kvacm
+03-black-hole.png    | exy3ml | 10  | unknown    | https://wallhaven.cc/w/exy3ml
+04-starfall.jpg      | 7jgyre | 272 | ExCharny   | https://www.artstation.com/artwork/x3xoLX
+05-dark-horizon.jpg  | 2e8ljx | 272 | hatti_98   | https://twitter.com/hatti_98
+06-eclipse.jpg       | l8v7kq | 272 | BisBiswas  | https://www.deviantart.com/bisbiswas/art/Eclipse-Night-940180219
+07-ring-portal.png   | m98zg9 | 17  | Gracile    | https://www.pixiv.net/en/users/3434849
+08-pink-planet.jpg   | oxeo25 | 112 | rmradev    | https://www.deviantart.com/rmradev/art/Alien-Moon-743912901
+09-blue-world.png    | yx2eqx | 280 | Aenami     | https://wallhaven.cc/w/yx2eqx
+10-nebula-orb.jpg    | 573kd1 | 272 | tadp0l3    | https://www.deviantart.com/tadp0l3/art/Heavens-gate-874730478
+11-earth-view.png    | d8633m | 17  | Gracile    | https://www.pixiv.net/en/users/3434849
+12-aurora-trail.jpg  | 2y53dy | 272 | BisBiswas  | https://www.deviantart.com/bisbiswas/art/Magical-Meteor-Night1-961897286
+13-red-moon.jpg      | d6qwkg | 272 | BisBiswas  | https://www.deviantart.com/bisbiswas/art/Solitary-Full-Moon-920157115
