@@ -1,0 +1,40 @@
+#!/bin/bash
+# Sets the wallpaper from ~/Pictures/Wallpapers. "next" moves to the following
+# one (SUPER + CTRL + SPACE); a path sets that file (the picker, SUPER + CTRL + W).
+dir=$HOME/Pictures/Wallpapers
+state=$HOME/.config/hypr/wallpaper-current
+conf=$HOME/.config/hypr/hyprpaper.conf
+
+mapfile -t walls < <(find "$dir" -maxdepth 1 -type f \( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.webp' \) | sort)
+(( ${#walls[@]} )) || { notify-send "No wallpapers in $dir"; exit 1; }
+
+current=$(cat "$state" 2>/dev/null)
+if [[ ${1:-next} == "next" ]]; then
+  next=${walls[0]}
+  for i in "${!walls[@]}"; do
+    if [[ ${walls[i]} == "$current" ]]; then
+      next=${walls[(i + 1) % ${#walls[@]}]}
+    fi
+  done
+else
+  next=$(readlink -f "$1")
+fi
+
+printf '%s
+' "$next" >"$state"
+"$HOME/.config/hypr/scripts/rofi-banner" &
+cat >"$conf" <<CONF
+# Written by ~/.config/hypr/scripts/wallpaper; SUPER + CTRL + SPACE cycles.
+splash = false
+
+wallpaper {
+    monitor =
+    path = $next
+    fit_mode = cover
+}
+CONF
+# Swap it live where hyprpaper is running; start it on the new file otherwise.
+if ! { pgrep -x hyprpaper >/dev/null && hyprctl hyprpaper wallpaper ",$next" >/dev/null 2>&1; }; then
+  pkill -x hyprpaper
+  hyprctl dispatch "hl.dsp.exec_cmd('hyprpaper')" >/dev/null
+fi

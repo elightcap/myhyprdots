@@ -1,0 +1,14 @@
+#!/bin/bash
+# A choice list on stdin, the picked line on stdout: rofi where installed,
+# fuzzel otherwise. Usage: menu "Prompt" [wide|small] [extra rofi args...]
+prompt=${1:-}; size=${2:-}; shift 2 2>/dev/null || shift $#
+if command -v rofi >/dev/null; then
+  case $size in
+    wide) theme='banner { enabled: false; } window { width: 1100px; } listview { lines: 14; }' ;;
+    small) theme='window { width: 640px; } banner { width: 200px; } listview { lines: 5; }' ;;
+    *) theme='' ;;
+  esac
+  exec rofi -dmenu -i -no-show-icons -p "$prompt" -theme-str "entry { placeholder: \"\"; } $theme" "$@"
+else
+  exec fuzzel --dmenu --prompt "$prompt  "
+fi

@@ -1,0 +1,757 @@
+diff --git c/crates/tuigreet-config/src/parser.rs w/crates/tuigreet-config/src/parser.rs
+index 1ade58a..28aad37 100644
+--- c/crates/tuigreet-config/src/parser.rs
++++ w/crates/tuigreet-config/src/parser.rs
+@@ -111,6 +111,9 @@ fn apply_config_layer(dest: &mut Config, src: Config) {
+   if src.display.custom_title != defaults.display.custom_title {
+     dest.display.custom_title = src.display.custom_title.clone();
+   }
++  if src.display.border_corner != defaults.display.border_corner {
++    dest.display.border_corner = src.display.border_corner.clone();
++  }
+   if src.display.issue != defaults.display.issue {
+     dest.display.issue = src.display.issue;
+   }
+@@ -450,6 +453,9 @@ pub fn extract_cli_config(matches: &getopts::Matches) -> Config {
+   if let Some(custom_title) = matches.opt_str("custom-title") {
+     config.display.custom_title = Some(custom_title);
+   }
++  if let Some(corner) = matches.opt_str("border-corner") {
++    config.display.border_corner = Some(corner);
++  }
+   if let Some(greeting) = matches.opt_str("greeting") {
+     config.display.greeting = Some(greeting);
+   }
+diff --git c/crates/tuigreet-config/src/schema.rs w/crates/tuigreet-config/src/schema.rs
+index b796a32..6b8c3db 100644
+--- c/crates/tuigreet-config/src/schema.rs
++++ w/crates/tuigreet-config/src/schema.rs
+@@ -212,6 +212,10 @@ pub struct DisplayConfig {
+   #[serde(default)]
+   pub custom_title: Option<String>,
+ 
++  /// Glyph drawn on the four corners of the login form border
++  #[serde(default)]
++  pub border_corner: Option<String>,
++
+   /// Show /etc/issue file
+   #[serde(default)]
+   pub issue: bool,
+diff --git c/crates/tuigreet/src/greeter.rs w/crates/tuigreet/src/greeter.rs
+index f768fa4..7f25850 100644
+--- c/crates/tuigreet/src/greeter.rs
++++ w/crates/tuigreet/src/greeter.rs
+@@ -696,6 +696,12 @@ impl Greeter {
+       "custom title for the login form",
+       "TITLE",
+     );
++    opts.optopt(
++      "",
++      "border-corner",
++      "glyph drawn on the corners of the login form border",
++      "CHAR",
++    );
+     opts.optflag("t", "time", "display the current date and time");
+     opts.optopt(
+       "",
+@@ -814,7 +820,7 @@ impl Greeter {
+     opts.optopt(
+       "",
+       "background",
+-      "background animation to render behind the login UI ('doom' or 'none')",
++      "background animation to render behind the login UI ('doom', 'matrix', 'night' or 'none')",
+       "NAME",
+     );
+     opts.optopt(
+@@ -957,6 +963,9 @@ impl Greeter {
+     if let Some(custom_title) = self.option("custom-title") {
+       self.title.custom = Some(custom_title);
+     }
++    if let Some(corner) = self.option("border-corner") {
++      self.title.border_corner = Some(corner);
++    }
+ 
+     if self.config().opt_present("user-menu") {
+       self.user_menu = true;
+@@ -1156,7 +1165,7 @@ impl Greeter {
+     &mut self,
+     cfg: &tuigreet_config::BackgroundConfig,
+   ) {
+-    use crate::ui::bg_animation::{Kind, doom, matrix};
++    use crate::ui::bg_animation::{Kind, doom, matrix, night};
+ 
+     let Some(kind) = cfg.kind.as_deref().and_then(Kind::from_name) else {
+       if let Some(name) = cfg.kind.as_deref()
+@@ -1204,6 +1213,7 @@ impl Greeter {
+           mutate_chance: cfg.matrix.mutate_chance.unwrap_or(d.mutate_chance),
+         })
+       },
++      Kind::Night => AnimationSpec::Night(night::Options::default()),
+     };
+     self.animation = Some(bg_animation::build(&spec));
+     self.animation_fps = Some(cfg.fps.unwrap_or(ANIMATION_DEFAULT_FPS));
+@@ -1325,6 +1335,7 @@ impl Greeter {
+     };
+     self.title.enable = config.display.show_title;
+     self.title.custom = config.display.custom_title.clone();
++    self.title.border_corner = config.display.border_corner.clone();
+     // Remember
+     self.default_user = config.remember.default_user.clone();
+     self.remember = config.remember.username;
+@@ -1396,6 +1407,8 @@ pub struct TitleOption {
+   pub enable: bool,
+   // Custom title text
+   pub custom: Option<String>,
++  // Glyph drawn on the four corners of the border
++  pub border_corner: Option<String>,
+ }
+ 
+ impl Default for TitleOption {
+@@ -1403,6 +1416,7 @@ impl Default for TitleOption {
+     Self {
+       enable: true,
+       custom: None,
++      border_corner: None,
+     }
+   }
+ }
+diff --git c/crates/tuigreet/src/ui/bg_animation/mod.rs w/crates/tuigreet/src/ui/bg_animation/mod.rs
+index dff1af6..84eaecf 100644
+--- c/crates/tuigreet/src/ui/bg_animation/mod.rs
++++ w/crates/tuigreet/src/ui/bg_animation/mod.rs
+@@ -2,6 +2,7 @@
+ 
+ pub mod doom;
+ pub mod matrix;
++pub mod night;
+ 
+ use std::str::FromStr;
+ 
+@@ -24,6 +25,7 @@ pub trait Animation: Send + Sync {
+ pub enum Kind {
+   Doom,
+   Matrix,
++  Night,
+ }
+ 
+ /// Catalog entry for a registered animation kind.
+@@ -46,6 +48,11 @@ pub const KINDS: &[KindInfo] = &[
+     name:  "matrix",
+     label: "Matrix",
+   },
++  KindInfo {
++    kind:  Kind::Night,
++    name:  "night",
++    label: "Night Sky",
++  },
+ ];
+ 
+ impl Kind {
+@@ -54,6 +61,7 @@ impl Kind {
+     match name.trim().to_ascii_lowercase().as_str() {
+       "doom" | "fire" => Some(Self::Doom),
+       "matrix" | "cmatrix" => Some(Self::Matrix),
++      "night" | "stars" => Some(Self::Night),
+       _ => None,
+     }
+   }
+@@ -64,6 +72,7 @@ impl Kind {
+ pub enum AnimationSpec {
+   Doom(doom::Options),
+   Matrix(matrix::Options),
++  Night(night::Options),
+ }
+ 
+ /// Construct an animation matching `spec`'s variant.
+@@ -71,6 +80,7 @@ pub fn build(spec: &AnimationSpec) -> Box<dyn Animation> {
+   match spec {
+     AnimationSpec::Doom(opts) => Box::new(doom::Doom::new(opts.clone())),
+     AnimationSpec::Matrix(opts) => Box::new(matrix::Matrix::new(opts.clone())),
++    AnimationSpec::Night(opts) => Box::new(night::Night::new(opts.clone())),
+   }
+ }
+ 
+@@ -81,6 +91,7 @@ impl Kind {
+     match self {
+       Self::Doom => AnimationSpec::Doom(doom::Options::default()),
+       Self::Matrix => AnimationSpec::Matrix(matrix::Options::default()),
++      Self::Night => AnimationSpec::Night(night::Options::default()),
+     }
+   }
+ }
+@@ -140,5 +151,7 @@ mod tests {
+     assert_eq!(Kind::from_name(""), None);
+     assert_eq!(Kind::from_name("matrix"), Some(Kind::Matrix));
+     assert_eq!(Kind::from_name("CMATRIX"), Some(Kind::Matrix));
++    assert_eq!(Kind::from_name("night"), Some(Kind::Night));
++    assert_eq!(Kind::from_name("Stars"), Some(Kind::Night));
+   }
+ }
+diff --git c/crates/tuigreet/src/ui/bg_animation/night.rs w/crates/tuigreet/src/ui/bg_animation/night.rs
+new file mode 100644
+index 0000000..ab3f8ff
+--- /dev/null
++++ w/crates/tuigreet/src/ui/bg_animation/night.rs
+@@ -0,0 +1,537 @@
++//! A quiet night sky: twinkling stars, a shaded crescent moon and the odd
++//! shooting star.
++//!
++//! Everything is drawn with glyphs that exist in 256-glyph console fonts
++//! (`. · + * █ ▒ ░`) and with the 16 named colours, so it looks the same on
++//! a bare Linux VT (where any RGB colour is snapped to the console palette)
++//! as in a terminal emulator.
++//!
++//! * Stars have a base brightness, a slow sine twinkle and, rarely, a short
++//!   flare. Brightness picks both the glyph and the colour, so a star swells
++//!   from `.` to `·` to `+` to `*` and back.
++//! * The moon is a disc minus an offset disc. Each cell is supersampled and
++//!   its coverage picks `█`, `▒` or `░`, which anti-aliases the crescent.
++//!   The unlit part of the disc can show a faint "earthshine".
++//! * Shooting stars spawn near the top, fall down-left with a fading trail,
++//!   and burn out after a random distance.
++//! * Much more rarely a satellite drifts across: a steady dot on a straight,
++//!   slow path from one edge to the other, which sometimes glints once.
++
++use std::time::{SystemTime, UNIX_EPOCH};
++
++use rand::{RngExt, SeedableRng, prelude::StdRng};
++use tui::{
++  buffer::Buffer,
++  layout::{Position, Rect},
++  style::Color,
++};
++
++use super::Animation;
++
++/// Configurable parameters for the night sky.
++#[derive(Debug, Clone)]
++pub struct Options {
++  /// Fraction of cells holding a star.
++  pub density:       f32,
++  /// Draw the crescent moon.
++  pub moon:          bool,
++  /// Colour of the lit part of the moon.
++  pub moon_color:    Color,
++  /// Colour for faintly drawing the unlit part of the moon;
++  /// `Color::Reset` leaves it dark.
++  pub earthshine:    Color,
++  /// Probability per frame that a shooting star appears. `0.0` disables.
++  pub meteor_chance: f32,
++  /// Probability per frame that a satellite starts crossing. `0.0` disables.
++  pub satellite_chance: f32,
++  /// Colours stars may be tinted with when they are bright. The first entry
++  /// is the most common.
++  pub tints:         Vec<Color>,
++}
++
++impl Default for Options {
++  fn default() -> Self {
++    Self {
++      density:       0.017,
++      moon:          true,
++      moon_color:    Color::Yellow,
++      earthshine:    Color::Reset,
++      meteor_chance: 0.006,
++      satellite_chance: 0.0008,
++      tints:         vec![
++        Color::White,
++        Color::White,
++        Color::White,
++        Color::LightBlue,
++        Color::LightBlue,
++        Color::LightMagenta,
++        Color::Yellow,
++      ],
++    }
++  }
++}
++
++#[derive(Clone, Copy, Debug)]
++struct Star {
++  x:     u16,
++  y:     u16,
++  base:  f32,
++  amp:   f32,
++  rate:  f32,
++  phase: f32,
++  tint:  Color,
++  /// Frames left in the current flare; `0` when not flaring.
++  flare: u8,
++}
++
++#[derive(Clone, Copy, Debug)]
++struct Meteor {
++  x:    f32,
++  y:    f32,
++  /// Steps left before it burns out.
++  life: u8,
++  /// Steps taken so far; the trail never extends past the spawn point.
++  age:  u8,
++  /// Frames since it burnt out; the tail fades one segment per frame.
++  dead: u8,
++}
++
++#[derive(Clone, Copy, Debug)]
++struct Satellite {
++  x:       f32,
++  y:       f32,
++  dx:      f32,
++  dy:      f32,
++  /// Column at which it glints, if it does.
++  glint_x: Option<f32>,
++}
++
++/// One pre-computed moon cell.
++#[derive(Clone, Copy, Debug)]
++struct MoonCell {
++  x:  u16,
++  y:  u16,
++  ch: char,
++  fg: Color,
++}
++
++const FLARE_LEN: u8 = 10;
++/// Columns either side of `glint_x` over which a satellite glint shows.
++const GLINT_SPAN: f32 = 3.0;
++const TRAIL: [(char, Color); 6] = [
++  ('*', Color::White),
++  ('+', Color::LightBlue),
++  ('·', Color::LightBlue),
++  ('·', Color::Blue),
++  ('.', Color::DarkGray),
++  ('.', Color::DarkGray),
++];
++
++pub struct Night {
++  width:   u16,
++  height:  u16,
++  frame:   u64,
++  stars:   Vec<Star>,
++  meteors: Vec<Meteor>,
++  satellite: Option<Satellite>,
++  moon:    Vec<MoonCell>,
++  /// Moon centre and radii in cells, for keeping stars out of it.
++  moon_at: (f32, f32, f32, f32),
++  opts:    Options,
++  rng:     StdRng,
++}
++
++impl Night {
++  pub fn new(mut opts: Options) -> Self {
++    opts.density = opts.density.clamp(0.0, 0.2);
++    opts.meteor_chance = opts.meteor_chance.clamp(0.0, 1.0);
++    opts.satellite_chance = opts.satellite_chance.clamp(0.0, 1.0);
++    if opts.tints.is_empty() {
++      opts.tints.push(Color::White);
++    }
++
++    let seed = SystemTime::now()
++      .duration_since(UNIX_EPOCH)
++      .map(|d| d.as_nanos() as u64)
++      .unwrap_or(0);
++
++    Self {
++      width: 0,
++      height: 0,
++      frame: 0,
++      stars: Vec::new(),
++      meteors: Vec::new(),
++      satellite: None,
++      moon: Vec::new(),
++      moon_at: (0.0, 0.0, 0.0, 0.0),
++      opts,
++      rng: StdRng::seed_from_u64(seed),
++    }
++  }
++
++  fn rand_f(&mut self, lo: f32, hi: f32) -> f32 {
++    lo + (hi - lo) * self.rng.random_range(0..10_000) as f32 / 10_000.0
++  }
++
++  fn in_moon_halo(&self, x: f32, y: f32) -> bool {
++    let (cx, cy, rx, ry) = self.moon_at;
++    if rx == 0.0 {
++      return false;
++    }
++    let u = (x - cx) / (rx * 1.35);
++    let v = (y - cy) / (ry * 1.35);
++    u * u + v * v < 1.0
++  }
++
++  fn build_moon(&mut self) {
++    self.moon.clear();
++    self.moon_at = (0.0, 0.0, 0.0, 0.0);
++    if !self.opts.moon || self.height < 12 || self.width < 40 {
++      return;
++    }
++    // Console cells are about twice as tall as they are wide, so the
++    // horizontal radius is twice the vertical one to stay round.
++    let ry = (f32::from(self.height) * 0.13).clamp(3.0, 9.0);
++    let rx = ry * 2.0;
++    let cx = f32::from(self.width) * 0.80;
++    let cy = (f32::from(self.height) * 0.22).max(ry + 2.0);
++    self.moon_at = (cx, cy, rx, ry);
++
++    // The shadow disc sits up and to the right, leaving a crescent lit
++    // from the lower left.
++    let (sx, sy, sr) = (0.40_f32, -0.22_f32, 0.93_f32);
++    const N: usize = 4;
++
++    let x0 = (cx - rx - 1.0).max(0.0) as u16;
++    let x1 = ((cx + rx + 1.0) as u16).min(self.width);
++    let y0 = (cy - ry - 1.0).max(0.0) as u16;
++    let y1 = ((cy + ry + 1.0) as u16).min(self.height);
++    for y in y0..y1 {
++      for x in x0..x1 {
++        let (mut lit, mut disc) = (0usize, 0usize);
++        for i in 0..N {
++          for j in 0..N {
++            let px = f32::from(x) + (i as f32 + 0.5) / N as f32;
++            let py = f32::from(y) + (j as f32 + 0.5) / N as f32;
++            let u = (px - cx) / rx;
++            let v = (py - cy) / ry;
++            if u * u + v * v < 1.0 {
++              disc += 1;
++              let (du, dv) = ((u - sx) / sr, (v - sy) / sr);
++              if du * du + dv * dv >= 1.0 {
++                lit += 1;
++              }
++            }
++          }
++        }
++        let lit = lit as f32 / (N * N) as f32;
++        let disc = disc as f32 / (N * N) as f32;
++        let cell = if lit > 0.78 {
++          Some(('█', self.opts.moon_color))
++        } else if lit > 0.42 {
++          Some(('▒', self.opts.moon_color))
++        } else if lit > 0.10 {
++          Some(('░', self.opts.moon_color))
++        } else if disc > 0.6 && self.opts.earthshine != Color::Reset {
++          Some(('░', self.opts.earthshine))
++        } else {
++          None
++        };
++        if let Some((ch, fg)) = cell {
++          self.moon.push(MoonCell { x, y, ch, fg });
++        }
++      }
++    }
++  }
++
++  fn scatter_stars(&mut self) {
++    self.stars.clear();
++    let usable_h = self.height.saturating_sub(1); // keep the status row clear
++    let count = (f32::from(self.width) * f32::from(usable_h)
++      * self.opts.density) as usize;
++    let mut tries = 0;
++    while self.stars.len() < count && tries < count * 10 {
++      tries += 1;
++      let x = self.rng.random_range(0..self.width.max(1));
++      let y = self.rng.random_range(0..usable_h.max(1));
++      if self.in_moon_halo(f32::from(x) + 0.5, f32::from(y) + 0.5) {
++        continue;
++      }
++      let bright = self.rng.random_bool(0.2);
++      let base = if bright {
++        self.rand_f(0.62, 0.9)
++      } else {
++        self.rand_f(0.18, 0.58)
++      };
++      let tint =
++        self.opts.tints[self.rng.random_range(0..self.opts.tints.len())];
++      let star = Star {
++        x,
++        y,
++        base,
++        amp: self.rand_f(0.08, 0.28),
++        rate: self.rand_f(0.025, 0.11),
++        phase: self.rand_f(0.0, std::f32::consts::TAU),
++        tint,
++        flare: 0,
++      };
++      self.stars.push(star);
++    }
++  }
++
++  fn star_glyph(star: &Star, t: f32) -> Option<(char, Color)> {
++    let mut b = star.base + star.amp * (t * star.rate + star.phase).sin();
++    if star.flare > 0 {
++      b += 0.7 * f32::from(star.flare) / f32::from(FLARE_LEN);
++    }
++    match b {
++      b if b < 0.16 => None,
++      b if b < 0.38 => Some(('.', Color::DarkGray)),
++      b if b < 0.58 => Some(('·', Color::Gray)),
++      b if b < 0.80 => Some(('+', star.tint)),
++      _ => Some(('*', star.tint)),
++    }
++  }
++}
++
++impl Animation for Night {
++  fn resize(&mut self, area: Rect) {
++    if area.width == self.width && area.height == self.height {
++      return;
++    }
++    self.width = area.width;
++    self.height = area.height;
++    self.meteors.clear();
++    self.satellite = None;
++    self.build_moon();
++    self.scatter_stars();
++  }
++
++  fn step(&mut self) {
++    if self.width == 0 || self.height == 0 {
++      return;
++    }
++    self.frame = self.frame.wrapping_add(1);
++
++    for i in 0..self.stars.len() {
++      if self.stars[i].flare > 0 {
++        self.stars[i].flare -= 1;
++      } else if self.rng.random_bool(0.0004) {
++        self.stars[i].flare = FLARE_LEN;
++      }
++    }
++
++    // Meteors move two columns left per row down: about 45 degrees on a
++    // console whose cells are twice as tall as wide.
++    for m in &mut self.meteors {
++      if m.life > 0 {
++        m.x -= 2.0;
++        m.y += 1.0;
++        m.life -= 1;
++        m.age = m.age.saturating_add(1);
++      } else {
++        m.dead += 1;
++      }
++    }
++    let (w, h) = (f32::from(self.width), f32::from(self.height));
++    let tail = TRAIL.len() as f32;
++    self.meteors.retain(|m| {
++      (m.dead as usize) < TRAIL.len() && m.x > -2.0 * tail && m.y < h + tail
++    });
++
++    if let Some(sat) = &mut self.satellite {
++      sat.x += sat.dx;
++      sat.y += sat.dy;
++      if sat.x < -1.0 || sat.x > w + 1.0 || sat.y < -1.0 || sat.y > h {
++        self.satellite = None;
++      }
++    } else if self.opts.satellite_chance > 0.0
++      && self.rng.random_bool(f64::from(self.opts.satellite_chance))
++    {
++      // Edge to edge in 25-45 seconds at 15 fps, with a slight slope.
++      let speed = w / self.rand_f(375.0, 675.0);
++      let leftward = self.rng.random_bool(0.5);
++      let y = self.rand_f(h * 0.05, h * 0.6);
++      let dy = self.rand_f(-0.012, 0.012);
++      let glint_x = if self.rng.random_bool(0.3) {
++        Some(self.rand_f(w * 0.2, w * 0.8))
++      } else {
++        None
++      };
++      self.satellite = Some(Satellite {
++        x: if leftward { w } else { -1.0 },
++        y,
++        dx: if leftward { -speed } else { speed },
++        dy,
++        glint_x,
++      });
++    }
++
++    if self.opts.meteor_chance > 0.0
++      && self.meteors.len() < 2
++      && self.rng.random_bool(f64::from(self.opts.meteor_chance))
++    {
++      let x = self.rand_f(w * 0.3, w * 0.98);
++      let y = self.rand_f(0.0, h * 0.35);
++      let life = self.rng.random_range(8..=20);
++      self.meteors.push(Meteor {
++        x,
++        y,
++        life,
++        age: 0,
++        dead: 0,
++      });
++    }
++  }
++
++  fn render(&self, area: Rect, buf: &mut Buffer) {
++    if self.width == 0 || self.height == 0 {
++      return;
++    }
++    let mut put = |x: u16, y: u16, ch: char, fg: Color| {
++      if x >= self.width || y >= self.height {
++        return;
++      }
++      if let Some(out) = buf.cell_mut(Position {
++        x: area.x + x,
++        y: area.y + y,
++      }) {
++        out.set_char(ch);
++        out.set_fg(fg);
++        out.set_bg(Color::Reset);
++      }
++    };
++
++    let t = self.frame as f32;
++    for star in &self.stars {
++      if let Some((ch, fg)) = Self::star_glyph(star, t) {
++        put(star.x, star.y, ch, fg);
++      }
++    }
++
++    for m in &self.meteors {
++      // Once burnt out it stops, and the tail fades from the head back.
++      for (i, &(ch, fg)) in TRAIL.iter().enumerate().skip(m.dead as usize) {
++        if i > m.age as usize {
++          break;
++        }
++        let x = m.x + 2.0 * i as f32;
++        let y = m.y - i as f32;
++        if x < 0.0 || y < 0.0 || self.in_moon_halo(x + 0.5, y + 0.5) {
++          continue;
++        }
++        put(x as u16, y as u16, ch, fg);
++      }
++    }
++
++    if let Some(sat) = &self.satellite
++      && sat.x >= 0.0
++      && sat.y >= 0.0
++      && !self.in_moon_halo(sat.x + 0.5, sat.y + 0.5)
++    {
++      let glinting = sat
++        .glint_x
++        .is_some_and(|gx| (sat.x - gx).abs() < GLINT_SPAN);
++      let (ch, fg) = if glinting {
++        ('*', Color::Yellow)
++      } else {
++        ('·', Color::White)
++      };
++      put(sat.x as u16, sat.y as u16, ch, fg);
++    }
++
++    for c in &self.moon {
++      put(c.x, c.y, c.ch, c.fg);
++    }
++  }
++}
++
++#[cfg(test)]
++mod tests {
++  use super::*;
++
++  fn fixed(opts: Options) -> Night {
++    let mut n = Night::new(opts);
++    n.rng = StdRng::seed_from_u64(7);
++    n
++  }
++
++  #[test]
++  fn scatters_stars_by_density() {
++    let mut n = fixed(Options::default());
++    n.resize(Rect::new(0, 0, 200, 50));
++    let expected = (200.0 * 49.0 * 0.017) as usize;
++    assert!(n.stars.len() >= expected * 9 / 10, "{}", n.stars.len());
++    assert!(n.stars.iter().all(|s| s.y < 49), "status row must stay clear");
++  }
++
++  #[test]
++  fn moon_is_drawn_and_kept_free_of_stars() {
++    let mut n = fixed(Options::default());
++    n.resize(Rect::new(0, 0, 200, 50));
++    assert!(n.moon.iter().any(|c| c.ch == '█'), "moon needs a solid body");
++    for s in &n.stars {
++      assert!(!n.in_moon_halo(f32::from(s.x) + 0.5, f32::from(s.y) + 0.5));
++    }
++  }
++
++  #[test]
++  fn no_moon_on_tiny_screens() {
++    let mut n = fixed(Options::default());
++    n.resize(Rect::new(0, 0, 30, 10));
++    assert!(n.moon.is_empty());
++  }
++
++  #[test]
++  fn meteors_spawn_and_burn_out() {
++    let mut n = fixed(Options {
++      meteor_chance: 1.0,
++      ..Options::default()
++    });
++    n.resize(Rect::new(0, 0, 200, 50));
++    n.step();
++    assert!(!n.meteors.is_empty());
++    n.opts.meteor_chance = 0.0;
++    for _ in 0..60 {
++      n.step();
++    }
++    assert!(n.meteors.is_empty(), "meteors must expire");
++  }
++
++  #[test]
++  fn satellite_crosses_and_leaves() {
++    let mut n = fixed(Options {
++      meteor_chance: 0.0,
++      satellite_chance: 1.0,
++      ..Options::default()
++    });
++    n.resize(Rect::new(0, 0, 200, 50));
++    n.step();
++    let start = n.satellite.expect("satellite should spawn");
++    n.opts.satellite_chance = 0.0;
++    for _ in 0..5 {
++      n.step();
++    }
++    let later = n.satellite.expect("still crossing");
++    assert!((later.x - start.x).abs() > 0.5, "it should move");
++    assert!((later.y - start.y).abs() < 1.0, "path is nearly level");
++    for _ in 0..2000 {
++      n.step();
++    }
++    assert!(n.satellite.is_none(), "it should leave the screen");
++  }
++
++  #[test]
++  fn renders_inside_area() {
++    let mut n = fixed(Options::default());
++    let area = Rect::new(0, 0, 120, 40);
++    n.resize(area);
++    let mut buf = Buffer::empty(area);
++    for _ in 0..30 {
++      n.step();
++    }
++    n.render(area, &mut buf);
++    let painted = buf.content.iter().filter(|c| c.symbol() != " ").count();
++    assert!(painted > 20);
++  }
++}
+diff --git c/crates/tuigreet/src/ui/prompt.rs w/crates/tuigreet/src/ui/prompt.rs
+index a70762f..b476dd1 100644
+--- c/crates/tuigreet/src/ui/prompt.rs
++++ w/crates/tuigreet/src/ui/prompt.rs
+@@ -82,6 +82,20 @@ pub fn draw_with_area(
+ 
+   f.render_widget(block, container);
+ 
++  // Optional decorative corners; the block has already styled these cells.
++  if let Some(corner) = greeter.title.border_corner.as_deref()
++    && !corner.is_empty()
++    && width > 1
++    && height > 1
++  {
++    let (right, bottom) = (x + width - 1, y + height - 1);
++    for (cx, cy) in [(x, y), (right, y), (x, bottom), (right, bottom)] {
++      if let Some(cell) = f.buffer_mut().cell_mut((cx, cy)) {
++        cell.set_symbol(corner);
++      }
++    }
++  }
++
+   let (message, message_height) =
+     get_message_height(greeter, container_padding, 1);
+   let (greeting, greeting_height) =

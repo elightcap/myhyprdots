@@ -1,0 +1,105 @@
+/* Catppuccin Mocha launcher: a strip of the current wallpaper beside the list.
+   The strip is ~/.cache/rofi-banner.png, remade whenever the wallpaper changes. */
+
+* {
+  base:      #1e1e2ef2;
+  surface0:  #313244;
+  surface1:  #45475a;
+  overlay0:  #6c7086;
+  text:      #cdd6f4;
+  subtext0:  #a6adc8;
+  blue:      #89b4fa;
+  mauve:     #cba6f7;
+  pink:      #f5c2e7;
+
+  font: "CaskaydiaMono Nerd Font Propo 12";
+  background-color: transparent;
+  text-color: @text;
+  margin: 0;
+  padding: 0;
+  spacing: 0;
+}
+
+window {
+  location: center;
+  width: 920px;
+  border: 2px;
+  border-color: @blue;
+  border-radius: 16px;
+  background-color: @base;
+}
+
+mainbox {
+  orientation: horizontal;
+  children: [ banner, listbox ];
+}
+
+banner {
+  expand: false;
+  width: 290px;
+  border-radius: 14px 0 0 14px;
+  background-image: url("~/.cache/rofi-banner.png", height);
+}
+
+listbox {
+  orientation: vertical;
+  padding: 22px 20px 20px 20px;
+  spacing: 16px;
+  children: [ inputbar, message, listview ];
+}
+
+inputbar {
+  padding: 13px 16px;
+  spacing: 12px;
+  border-radius: 12px;
+  background-color: @surface0;
+  children: [ prompt, entry ];
+}
+prompt { text-color: @mauve; vertical-align: 0.5; }
+entry {
+  placeholder: "Search apps…";
+  placeholder-color: @overlay0;
+  cursor: text;
+}
+
+message {
+  padding: 10px 14px;
+  border-radius: 10px;
+  background-color: @surface0;
+}
+textbox { text-color: @subtext0; }
+
+listview {
+  lines: 8;
+  columns: 1;
+  spacing: 4px;
+  fixed-height: true;
+  scrollbar: false;
+  cycle: true;
+}
+
+element {
+  padding: 9px 12px;
+  spacing: 14px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+element normal.normal, element alternate.normal, element normal.active, element alternate.active {
+  background-color: transparent;
+  text-color: @text;
+}
+element selected.normal, element selected.active {
+  background-image: linear-gradient(to right, #89b4fa40, #cba6f733);
+  border: 0 0 0 3px;
+  border-color: @mauve;
+  text-color: @text;
+}
+element-icon {
+  size: 30px;
+  cursor: inherit;
+}
+element-text {
+  vertical-align: 0.5;
+  cursor: inherit;
+  highlight: bold #f5c2e7;
+}

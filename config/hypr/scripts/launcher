@@ -1,0 +1,7 @@
+#!/bin/bash
+# SUPER + SPACE: the app launcher. Pressing it again closes it.
+if command -v rofi >/dev/null; then
+  pkill -x rofi || exec rofi -show drun
+else
+  pkill -x fuzzel || exec fuzzel
+fi

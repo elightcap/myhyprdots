@@ -1,0 +1,15 @@
+#!/bin/bash
+# SUPER + K: every binding in bindings.lua with its description, searchable.
+file=$HOME/.config/hypr/bindings.lua
+{
+  sed -nE 's/^[[:space:]]*bind\("([^"]+)", "([^"]+)".*/\1\t\2/p' "$file" | grep -v '	Raise it$'
+  printf '%s\t%s\n' \
+    "SUPER + 1..0" "Switch to workspace" \
+    "SUPER + SHIFT + 1..0" "Move window to workspace" \
+    "SUPER + SHIFT + ALT + 1..0" "Move window silently to workspace" \
+    "SUPER + MINUS / EQUAL" "Resize width (SHIFT height, ALT small, CTRL big)" \
+    "SUPER + left drag" "Move window" \
+    "SUPER + right drag" "Resize window"
+} | grep -vE '^SUPER \+ (SHIFT \+ )?(ALT \+ |CTRL \+ )?(MINUS|EQUAL)	' |
+  awk -F'\t' '{ printf "%-34s %s\n", $1, $2 }' |
+  "$HOME/.config/hypr/scripts/menu" "Keys" wide >/dev/null

@@ -1,0 +1,116 @@
+{
+  "layer": "top",
+  "position": "top",
+  "height": 34,
+  "margin-top": 6,
+  "margin-left": 10,
+  "margin-right": 10,
+  "spacing": 4,
+
+  "modules-left": ["custom/launcher", "hyprland/workspaces", "hyprland/window"],
+  "modules-center": ["clock"],
+  "modules-right": ["custom/recording", "mpris", "tray", "custom/dnd", "bluetooth", "network", "pulseaudio", "cpu", "memory", "custom/power"],
+
+  "custom/launcher": {
+    "format": "",
+    "tooltip": false,
+    "on-click": "~/.config/hypr/scripts/launcher"
+  },
+
+  "hyprland/workspaces": {
+    "format": "{name}",
+    "persistent-workspaces": { "*": 5 },
+    "on-scroll-up": "hyprctl dispatch 'hl.dsp.focus({ workspace = \"e-1\" })'",
+    "on-scroll-down": "hyprctl dispatch 'hl.dsp.focus({ workspace = \"e+1\" })'"
+  },
+
+  "hyprland/window": {
+    "format": "{title}",
+    "max-length": 60,
+    "separate-outputs": true
+  },
+
+  "clock": {
+    "format": "{:%a %b %d   %H:%M}",
+    "tooltip-format": "<tt>{calendar}</tt>",
+    "calendar": {
+      "mode": "month",
+      "format": {
+        "months": "<span color='#cba6f7'><b>{}</b></span>",
+        "weekdays": "<span color='#89b4fa'><b>{}</b></span>",
+        "today": "<span color='#f9e2af'><b><u>{}</u></b></span>"
+      }
+    }
+  },
+
+  "mpris": {
+    "format": "  {title}",
+    "format-paused": "  {title}",
+    "max-length": 40,
+    "tooltip-format": "{artist} - {title}"
+  },
+
+  "tray": { "icon-size": 16, "spacing": 8 },
+
+  "custom/recording": {
+    "exec": "~/.config/hypr/scripts/recording-status",
+    "return-type": "json",
+    "interval": "once",
+    "signal": 9,
+    "on-click": "~/.config/hypr/scripts/screenrecord"
+  },
+
+  "custom/dnd": {
+    "exec": "~/.config/hypr/scripts/dnd",
+    "return-type": "json",
+    "interval": "once",
+    "signal": 8,
+    "on-click": "~/.config/hypr/scripts/dnd toggle"
+  },
+
+  "bluetooth": {
+    "format": "",
+    "format-disabled": "",
+    "format-off": "",
+    "format-connected": " {num_connections}",
+    "tooltip-format-connected": "{device_enumerate}",
+    "tooltip-format-enumerate-connected": "{device_alias}",
+    "on-click": "kitty --class tui.float -e bluetui"
+  },
+
+  "network": {
+    "format-wifi": "  {essid}",
+    "format-ethernet": "",
+    "format-disconnected": "",
+    "tooltip-format-wifi": "{essid} ({signalStrength}%)\n{ipaddr}",
+    "tooltip-format-ethernet": "{ifname}\n{ipaddr}",
+    "on-click": "kitty --class tui.float -e nmtui"
+  },
+
+  "pulseaudio": {
+    "format": "{icon}  {volume}%",
+    "format-muted": "  muted",
+    "format-icons": { "default": ["", "", ""] },
+    "on-click": "kitty --class tui.float -e wiremix",
+    "on-click-right": "swayosd-client --output-volume mute-toggle",
+    "scroll-step": 5
+  },
+
+  "cpu": {
+    "format": "  {usage}%",
+    "interval": 5,
+    "on-click": "kitty --class tui.float -e btop"
+  },
+
+  "memory": {
+    "format": "  {percentage}%",
+    "interval": 5,
+    "tooltip-format": "{used:0.1f} of {total:0.1f} GiB"
+  },
+
+  "custom/power": {
+    "format": "",
+    "tooltip": false,
+    "on-click": "~/.config/hypr/scripts/power-menu"
+  }
+}

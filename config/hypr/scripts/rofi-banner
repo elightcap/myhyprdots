@@ -1,0 +1,9 @@
+#!/bin/bash
+# Cuts the strip of the current wallpaper that the launcher shows on its left.
+wall=$(cat "$HOME/.config/hypr/wallpaper-current" 2>/dev/null)
+[[ -f $wall ]] || exit 0
+# The strip is 290x(about 520) on screen; make it twice that for a crisp image,
+# taken from the middle of the wallpaper and darkened a touch toward the list.
+magick "$wall" -resize x1080 -gravity center -crop 620x1080+0+0 +repage \
+  \( -size 620x1080 gradient:'rgba(17,17,27,0)'-'rgba(17,17,27,0.35)' -rotate -90 \) -composite \
+  "$HOME/.cache/rofi-banner.png" 2>/dev/null

@@ -1,0 +1,18 @@
+configuration {
+  modi: "drun,run";
+  show-icons: true;
+  icon-theme: "Papirus-Dark";
+  terminal: "kitty";
+  drun-display-format: "{name}";
+  display-drun: "";
+  display-run: "";
+  matching: "fuzzy";
+  sort: true;
+  sorting-method: "fzf";
+  hover-select: true;
+  me-select-entry: "";
+  me-accept-entry: "MousePrimary";
+  kb-cancel: "Escape,Super+space";
+}
+
+@theme "catppuccin-banner"

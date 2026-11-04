@@ -1,0 +1,27 @@
+#!/bin/bash
+# PRINT: region to clipboard and ~/Pictures/Screenshots.
+# SHIFT + PRINT: region into satty to annotate. CTRL + PRINT: the whole screen.
+dir=$HOME/Pictures/Screenshots
+mkdir -p "$dir"
+file=$dir/$(date +%Y-%m-%d_%H-%M-%S).png
+
+region() {
+  slurp -d -b 11111b88 -c 89b4faff -s 89b4fa22 -w 2
+}
+
+case ${1:-region} in
+  region)
+    geometry=$(region) || exit 0
+    grim -g "$geometry" "$file" && wl-copy <"$file" &&
+      notify-send -a Screenshot -i "$file" "Screenshot copied" "Saved to ${file/#$HOME/\~}"
+    ;;
+  edit)
+    geometry=$(region) || exit 0
+    grim -g "$geometry" - | satty --filename - --output-filename "$file" --early-exit --copy-command wl-copy
+    ;;
+  output)
+    output=$(hyprctl -j monitors | jq -r '.[] | select(.focused) | .name')
+    grim -o "$output" "$file" && wl-copy <"$file" &&
+      notify-send -a Screenshot -i "$file" "Screenshot copied" "Saved to ${file/#$HOME/\~}"
+    ;;
+esac

@@ -1,0 +1,4 @@
+#!/bin/bash
+# SUPER + CTRL + V: pick something from clipboard history and copy it again.
+selection=$(cliphist list | "$HOME/.config/hypr/scripts/menu" "Clipboard" wide -display-columns 2) || exit 0
+cliphist decode <<<"$selection" | wl-copy

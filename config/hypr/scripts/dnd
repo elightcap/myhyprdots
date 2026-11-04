@@ -1,0 +1,13 @@
+#!/bin/bash
+# Do-not-disturb for mako, shown as a bell in the bar. "toggle" flips it;
+# no argument prints the bar's JSON.
+if [[ ${1:-} == "toggle" ]]; then
+  makoctl mode -t do-not-disturb >/dev/null
+  pkill -RTMIN+8 waybar
+  exit 0
+fi
+if makoctl mode | grep -qx do-not-disturb; then
+  printf '{"text":"","class":"dnd","tooltip":"Notifications paused"}\n'
+else
+  printf '{"text":"","class":"on","tooltip":"Notifications on"}\n'
+fi

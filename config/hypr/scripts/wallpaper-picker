@@ -1,0 +1,49 @@
+#!/bin/bash
+# SUPER + CTRL + W: browse ~/Pictures/Wallpapers with a live preview.
+# Enter sets the highlighted wallpaper and closes, Tab tries it on the desktop
+# without closing, Esc closes. Runs inside its own floating kitty window.
+dir=$HOME/Pictures/Wallpapers
+thumbs=${XDG_CACHE_HOME:-$HOME/.cache}/wallpaper-thumbs
+set_wallpaper=$HOME/.config/hypr/scripts/wallpaper
+current=$(cat "$HOME/.config/hypr/wallpaper-current" 2>/dev/null)
+
+if [[ -z ${KITTY_WINDOW_ID:-} ]]; then
+  exec kitty --class wallpaper.picker --title Wallpapers -o background_opacity=0.96 -o font_size=12 "$0"
+fi
+
+mkdir -p "$thumbs"
+mapfile -t walls < <(find "$dir" -maxdepth 1 -type f \( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.webp' \) | sort)
+if (( ${#walls[@]} == 0 )); then
+  echo "No wallpapers in $dir yet. Put PNG, JPG or WebP files there and open this again."
+  read -rsn1
+  exit 0
+fi
+
+# Previews draw from small copies, made once and remade when a wallpaper changes.
+position=1
+lines=()
+for i in "${!walls[@]}"; do
+  wall=${walls[i]}
+  thumb=$thumbs/$(basename "${wall%.*}").jpg
+  if [[ ! -f $thumb || $wall -nt $thumb ]]; then
+    printf '\rPreparing previews %d/%d' "$((i + 1))" "${#walls[@]}"
+    magick "$wall" -resize 1600x1600 -quality 85 "$thumb" 2>/dev/null || cp "$wall" "$thumb"
+  fi
+  name=$(basename "${wall%.*}")
+  name=${name#[0-9]-}
+  name=${name//-/ }
+  [[ $wall == "$current" ]] && { position=$((i + 1)); name="$name  (current)"; }
+  lines+=("$wall"$'\t'"$thumb"$'\t'"$name")
+done
+printf '\r\033[K'
+
+printf '%s\n' "${lines[@]}" | fzf \
+  --delimiter=$'\t' --with-nth=3 \
+  --layout=reverse --no-info --pointer='▶' --prompt='  ' \
+  --header='Enter set · Tab try · Esc close' --header-first \
+  --color='bg+:#313244,bg:-1,spinner:#f5e0dc,hl:#89b4fa,fg:#cdd6f4,header:#7f849c,info:#cba6f7,pointer:#cba6f7,marker:#a6e3a1,fg+:#cdd6f4,prompt:#cba6f7,hl+:#89b4fa,border:#45475a,preview-border:#45475a' \
+  --preview-window='right,75%,border-left' \
+  --preview='kitty icat --clear --transfer-mode=memory --unicode-placeholder --stdin=no --place="${FZF_PREVIEW_COLUMNS}x${FZF_PREVIEW_LINES}@0x0" {2}' \
+  --bind="load:pos($position)" \
+  --bind="tab:execute-silent($set_wallpaper {1})" \
+  --bind="enter:execute-silent($set_wallpaper {1})+abort"

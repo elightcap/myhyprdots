@@ -1,0 +1,8 @@
+[Plymouth Theme]
+Name=Aurora
+Description=Catppuccin Mocha aurora splash with themed LUKS prompt
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/aurora
+ScriptFile=/usr/share/plymouth/themes/aurora/aurora.script

@@ -1,0 +1,59 @@
+#!/bin/bash
+# ALT + PRINT: start a screen recording, or stop the one running.
+# Starting asks what to record and which audio, then records with
+# gpu-screen-recorder into ~/Videos/Recordings. A red dot shows in the bar
+# while it runs; stopping saves the file, copies its path and says where it is.
+dir=$HOME/Videos/Recordings
+menu=$HOME/.config/hypr/scripts/menu
+state=${XDG_RUNTIME_DIR:-/tmp}/screenrecord.file
+
+refresh_bar() { pkill -RTMIN+9 waybar; }
+
+if pgrep -x gpu-screen-recorder >/dev/null; then
+  pkill -INT -x gpu-screen-recorder
+  for _ in $(seq 1 50); do pgrep -x gpu-screen-recorder >/dev/null || break; sleep 0.1; done
+  refresh_bar
+  file=$(cat "$state" 2>/dev/null)
+  if [[ -s $file ]]; then
+    printf '%s' "$file" | wl-copy
+    notify-send -a "Screen recording" "Recording saved" "${file/#$HOME/\~} (path copied)"
+  else
+    notify-send -a "Screen recording" -u critical "Recording failed" "Nothing was saved. Run the recorder from a terminal to see why."
+  fi
+  exit 0
+fi
+
+command -v gpu-screen-recorder >/dev/null || { notify-send -a "Screen recording" "gpu-screen-recorder is not installed"; exit 1; }
+
+what=$(printf '%s\n' "Region" "Whole screen" | "$menu" "Record" small) || exit 0
+audio=$(printf '%s\n' "No audio" "Desktop audio" "Desktop + microphone" | "$menu" "Audio" small) || exit 0
+
+target=()
+case $what in
+  Region)
+    geometry=$(slurp -d -b 11111b88 -c f38ba8ff -w 2 -f '%wx%h+%x+%y') || exit 0
+    target=(-w region -region "$geometry")
+    ;;
+  *)
+    target=(-w "$(hyprctl -j monitors | jq -r '.[] | select(.focused) | .name')")
+    ;;
+esac
+sound=()
+case $audio in
+  "Desktop audio") sound=(-a default_output) ;;
+  "Desktop + microphone") sound=(-a "default_output|default_input") ;;
+esac
+
+mkdir -p "$dir"
+file=$dir/$(date +%Y-%m-%d_%H-%M-%S).mp4
+printf '%s' "$file" >"$state"
+# Let the menus close before the first frame.
+sleep 0.3
+gpu-screen-recorder "${target[@]}" "${sound[@]}" -f 60 -q very_high -c mp4 -o "$file" >"${state%.file}.log" 2>&1 &
+sleep 0.5
+refresh_bar
+if pgrep -x gpu-screen-recorder >/dev/null; then
+  notify-send -a "Screen recording" -t 2000 "Recording" "Alt+Print to stop"
+else
+  notify-send -a "Screen recording" -u critical "Recording didn't start" "$(tail -n 2 "${state%.file}.log")"
+fi
